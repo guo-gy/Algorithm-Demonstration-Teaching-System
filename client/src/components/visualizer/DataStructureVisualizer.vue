@@ -2,6 +2,7 @@
 import { ref, onMounted, watch } from 'vue';
 import * as d3 from 'd3';
 import { useAlgorithmStore } from '../../stores/algorithm';
+import { useI18n } from '../../i18n';
 
 const props = defineProps<{
   type: 'array' | 'tree' | 'graph' | 'dp';
@@ -9,6 +10,7 @@ const props = defineProps<{
 
 
 const algoStore = useAlgorithmStore();
+const { t } = useI18n();
 const visualizerRef = ref<HTMLElement | null>(null);
 
 const renderArray = (data: number[], highlightedIndices: number[] = [], comparing: number[] = [], swapping: number[] = []) => {
@@ -229,7 +231,7 @@ onMounted(() => {
     
     <!-- Info Overlay -->
     <div v-if="algoStore.currentSnapshot" class="absolute top-4 left-4 right-4 bg-white/80 backdrop-blur-sm p-3 rounded-lg border border-white shadow-sm pointer-events-none">
-      <p class="text-sm font-medium text-slate-800">{{ algoStore.currentSnapshot.description }}</p>
+      <p class="text-sm font-medium text-slate-800">{{ t(`steps.${algoStore.currentSnapshot.description}`, algoStore.currentSnapshot.variables) }}</p>
     </div>
   </div>
 </template>

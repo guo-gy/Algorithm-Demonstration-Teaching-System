@@ -1,6 +1,8 @@
 import { defineStore } from 'pinia';
 import axios from 'axios';
-import type { AlgorithmSnapshot, AlgorithmMetaData } from '../../../shared/types';
+import type { AlgorithmSnapshot, AlgorithmMetaData, FillBlankEvaluation } from '../../../shared/types';
+
+const API_BASE_URL = 'http://localhost:3000/api';
 
 export const useAlgorithmStore = defineStore('algorithm', {
     state: () => ({
@@ -21,14 +23,26 @@ export const useAlgorithmStore = defineStore('algorithm', {
     },
     actions: {
         async fetchAlgorithms() {
-            const response = await axios.get('http://localhost:3000/api/algorithms');
+            const response = await axios.get(`${API_BASE_URL}/algorithms`);
             this.algorithms = response.data;
         },
         async runAlgorithm(id: string, data: any) {
-            const response = await axios.post(`http://localhost:3000/api/algorithms/${id}/execute`, data);
+            const response = await axios.post(`${API_BASE_URL}/algorithms/${id}/execute`, data);
             this.snapshots = response.data;
             this.currentStepIndex = 0;
             this.stopPlayback();
+        },
+        async gradeFillBlank(questionId: string, answer: string): Promise<FillBlankEvaluation> {
+            if (!this.currentAlgorithm) {
+                throw new Error('No algorithm selected');
+            }
+
+            const response = await axios.post(`${API_BASE_URL}/algorithms/${this.currentAlgorithm.id}/practice/fill-blank/grade`, {
+                questionId,
+                answer,
+            });
+
+            return response.data as FillBlankEvaluation;
         },
         nextStep() {
             if (this.currentStepIndex < this.snapshots.length - 1) {

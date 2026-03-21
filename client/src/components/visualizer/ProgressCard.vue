@@ -9,18 +9,20 @@ const algoStore = useAlgorithmStore();
 const authStore = useAuthStore();
 const { t } = useI18n();
 
-const progress = computed(() => {
-  if (!authStore.isAuthenticated || !algoStore.currentAlgorithm) return null;
-  // This would ideally come from a progress store or be fetched when algorithm changes
-  return null; // For now, we'll show a placeholder or "Locked" state if not implemented fully
+const demoCompletion = computed(() => {
+  if (!algoStore.snapshots.length) return 0;
+  return Math.round(((algoStore.currentStepIndex + 1) / algoStore.snapshots.length) * 100);
 });
 </script>
 
 <template>
   <div class="bg-white p-4 rounded-xl border border-slate-200 shadow-sm overflow-hidden relative">
-    <div v-if="!authStore.isAuthenticated" class="absolute inset-0 bg-slate-50/80 backdrop-blur-[1px] z-10 flex flex-col items-center justify-center text-center p-4">
+    <div
+      v-if="!authStore.isAuthenticated"
+      class="absolute inset-0 bg-slate-50/80 backdrop-blur-[1px] z-10 flex flex-col items-center justify-center text-center p-4"
+    >
       <Lock class="w-8 h-8 text-slate-400 mb-2" />
-      <p class="text-xs font-bold text-slate-500 uppercase tracking-wider">{{ t('navbar.login') }}以查看进度</p>
+      <p class="text-xs font-bold text-slate-500 uppercase tracking-wider">{{ t('navbar.login') }} 以查看进度</p>
     </div>
 
     <h3 class="font-bold text-slate-800 mb-4 flex items-center">
@@ -32,21 +34,21 @@ const progress = computed(() => {
       <div class="flex items-center justify-between">
         <div class="flex items-center space-x-2">
           <CheckCircle2 class="w-4 h-4 text-green-500" />
-          <span class="text-sm text-slate-600">已完成演示</span>
+          <span class="text-sm text-slate-600">当前演示完成度</span>
         </div>
-        <span class="text-xs font-bold text-slate-400">100%</span>
+        <span class="text-xs font-bold text-slate-400">{{ demoCompletion }}%</span>
       </div>
-      
+
       <div class="w-full bg-slate-100 h-1.5 rounded-full overflow-hidden">
-        <div class="bg-green-500 h-full w-[100%] rounded-full"></div>
+        <div class="bg-green-500 h-full rounded-full transition-all" :style="{ width: `${demoCompletion}%` }"></div>
       </div>
 
       <div class="flex items-center justify-between text-xs text-slate-400">
         <div class="flex items-center">
           <Clock class="w-3 h-3 mr-1" />
-          <span>上次访问: 刚刚</span>
+          <span>当前算法：{{ algoStore.currentAlgorithm ? t(`algorithms.${algoStore.currentAlgorithm.name}`) : '未选择' }}</span>
         </div>
-        <span>得分: 85</span>
+        <span>步数：{{ Math.max(algoStore.currentStepIndex + 1, 0) }}</span>
       </div>
     </div>
   </div>
