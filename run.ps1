@@ -1,106 +1,206 @@
-# ============================================
-# Algorithm Demonstration Teaching System
-# 一键启动及环境配置脚本
-# ============================================
+﻿param(
+    [switch]$NoBrowser,
+    [switch]$ForceInstall,
+    [switch]$CheckOnly
+)
 
 $ErrorActionPreference = "Stop"
-
-# 切换到脚本所在目录，防止因执行路径不对导致的问题
 Set-Location -Path $PSScriptRoot
 
-function Write-Success { Write-Host $args -ForegroundColor Green }
-function Write-Info { Write-Host $args -ForegroundColor Cyan }
-function Write-Warning { Write-Host $args -ForegroundColor Yellow }
-function Write-Error { Write-Host $args -ForegroundColor Red }
-
-Write-Info "================================================"
-Write-Info "  Algorithm Demonstration Teaching System"
-Write-Info "  算法演示教学系统 - 环境检测与一键启动"
-Write-Info "================================================"
-Write-Host ""
-
-# 1. 检查 Node.js 环境
-Write-Info "[1/5] 检查 Node.js 环境..."
-try {
-    $nodeVersion = node --version
-    Write-Success "✓ 检测到 Node.js 版本: $nodeVersion"
-} catch {
-    Write-Error "✗ 未检测到 Node.js，请前往 https://nodejs.org/ 下载并安装"
-    Read-Host "按 Enter 键退出..."
-    exit 1
+function Write-Ok([string]$Message) {
+    Write-Host $Message -ForegroundColor Green
 }
 
-# 2. 检查 npm
-Write-Info "[2/5] 检查 npm 环境..."
-try {
-    $npmVersion = npm --version
-    Write-Success "✓ 检测到 npm 版本: $npmVersion"
-} catch {
-    Write-Error "✗ npm 不可用！"
-    Read-Host "按 Enter 键退出..."
-    exit 1
+function Write-Info([string]$Message) {
+    Write-Host $Message -ForegroundColor Cyan
 }
 
-Write-Host ""
+function Write-WarnMsg([string]$Message) {
+    Write-Host $Message -ForegroundColor Yellow
+}
 
-# 3. 安装依赖
-Write-Info "[3/5] 检查并安装后端依赖..."
-if (Test-Path "server") {
-    Push-Location server
-    if (Test-Path "node_modules") {
-        Write-Success "✓ 后端依赖已存在，跳过安装。(若需重新安装请手动删除 server/node_modules 目录)"
-    } else {
-        Write-Host "正在安装后端依赖，由于涉及多个相关包，这可能需要一分钟左右，请耐心等待..." -ForegroundColor Gray
-        npm install
-        Write-Success "✓ 后端依赖安装完成"
+function Write-Fail([string]$Message) {
+    Write-Host $Message -ForegroundColor Red
+}
+
+function Require-Command([string]$Name) {
+    if (-not (Get-Command $Name -ErrorAction SilentlyContinue)) {
+        throw "Missing command: $Name"
     }
-    Pop-Location
-} else {
-    Write-Error "✗ 未找到 server 目录！请确保脚本与 server 目录在同一层级。"
-    Read-Host "按 Enter 键退出..."
-    exit 1
 }
 
-Write-Host ""
-Write-Info "[4/5] 检查并安装前端依赖..."
-if (Test-Path "client") {
-    Push-Location client
-    if (Test-Path "node_modules") {
-        Write-Success "✓ 前端依赖已存在，跳过安装。(若需重新安装请手动删除 client/node_modules 目录)"
-    } else {
-        Write-Host "正在安装前端依赖，请稍等..." -ForegroundColor Gray
-        npm install
-        Write-Success "✓ 前端依赖安装完成"
+function Ensure-Dependencies([string]$DirPath, [string]$DisplayName) {
+    if (-not (Test-Path -LiteralPath $DirPath)) {
+        throw "Missing directory: $DirPath"
     }
-    Pop-Location
-} else {
-    Write-Error "✗ 未找到 client 目录！请确保脚本与 client 目录在同一层级。"
-    Read-Host "按 Enter 键退出..."
-    exit 1
+
+    $modulesPath = Join-Path $DirPath "node_modules"
+    if ($ForceInstall -or -not (Test-Path -LiteralPath $modulesPath)) {
+        Write-Info "Installing $DisplayName dependencies..."
+        Push-Location $DirPath
+        try {
+            & npm install
+        }
+        finally {
+            Pop-Location
+        }
+        Write-Ok "$DisplayName dependencies installed."
+    }
+    else {
+        Write-Ok "$DisplayName dependencies already present."
+    }
 }
 
+function Get-PortOwnerInfo([int]$Port) {
+    try {
+        $connections = Get-NetTCPConnection -LocalPort $Port -State Listen -ErrorAction Stop
+    }
+    catch {
+        return $null
+    }
+
+    if (-not $connections) {
+        return $null
+    }
+
+    $procId = $connections[0].OwningProcess
+    $proc = Get-CimInstance Win32_Process -Filter "ProcessId=$procId" -ErrorAction SilentlyContinue
+    if (-not $proc) {
+        return [pscustomobject]@{
+            Port        = $Port
+            ProcessId   = $procId
+            Name        = "Unknown"
+            CommandLine = ""
+        }
+    }
+
+    return [pscustomobject]@{
+        Port        = $Port
+        ProcessId   = $procId
+        Name        = [string]$proc.Name
+        CommandLine = [string]$proc.CommandLine
+    }
+}
+
+function Test-ProcessOwnedByPath([pscustomobject]$Owner, [string]$ExpectedPath) {
+    if (-not $Owner) {
+        return $false
+    }
+
+    if ([string]::IsNullOrWhiteSpace($Owner.CommandLine)) {
+        return $false
+    }
+
+    $normalizedPath = [System.IO.Path]::GetFullPath($ExpectedPath).ToLowerInvariant()
+    return $Owner.CommandLine.ToLowerInvariant().Contains($normalizedPath)
+}
+
+function Format-PortOwner([pscustomobject]$Owner) {
+    if (-not $Owner) {
+        return "No process found."
+    }
+
+    $cmd = if ([string]::IsNullOrWhiteSpace($Owner.CommandLine)) { "(empty command line)" } else { $Owner.CommandLine }
+    return "PID=$($Owner.ProcessId), Name=$($Owner.Name), Command=$cmd"
+}
+
+function Get-LaunchShell {
+    $ps = Get-Command powershell -ErrorAction SilentlyContinue
+    if ($ps) {
+        return $ps.Source
+    }
+
+    $pwsh = Get-Command pwsh -ErrorAction SilentlyContinue
+    if ($pwsh) {
+        return $pwsh.Source
+    }
+
+    throw "Cannot find PowerShell executable."
+}
+
+Write-Info "========================================"
+Write-Info "Algorithm Demonstration Teaching System"
+Write-Info "One-click startup script"
+Write-Info "========================================"
 Write-Host ""
 
-# 4. 启动服务
-Write-Info "[5/5] 启动服务并打开系统网页..."
+try {
+    Write-Info "[1/4] Checking runtime..."
+    Require-Command "node"
+    Require-Command "npm"
+    Write-Ok ("Node.js: " + (& node --version))
+    Write-Ok ("npm: " + (& npm --version))
+    Write-Host ""
 
-Write-Host "启动后端服务... (在新窗口运行)" -ForegroundColor Gray
-Start-Process powershell -WorkingDirectory "$PSScriptRoot\server" -ArgumentList "-NoExit -Command `"npm run dev`""
+    Write-Info "[2/4] Checking dependencies..."
+    $serverDir = Join-Path $PSScriptRoot "server"
+    $clientDir = Join-Path $PSScriptRoot "client"
+    Ensure-Dependencies -DirPath $serverDir -DisplayName "Server"
+    Ensure-Dependencies -DirPath $clientDir -DisplayName "Client"
+    Write-Host ""
 
-Write-Host "启动前端服务... (在新窗口运行)" -ForegroundColor Gray
-Start-Process powershell -WorkingDirectory "$PSScriptRoot\client" -ArgumentList "-NoExit -Command `"npm run dev`""
+    if ($CheckOnly) {
+        Write-Ok "Check-only mode complete."
+        exit 0
+    }
 
-Write-Host "等待服务完成启动 (5秒)..." -ForegroundColor Gray
-Start-Sleep -Seconds 5
+    Write-Info "[3/4] Starting services..."
+    $shellExe = Get-LaunchShell
 
-Write-Info "正在打开浏览器访问前端页面..."
-Start-Process "http://localhost:5173"
+    $backendOwner = Get-PortOwnerInfo -Port 3000
+    if ($backendOwner) {
+        if (Test-ProcessOwnedByPath -Owner $backendOwner -ExpectedPath $serverDir) {
+            Write-Ok "Backend already running on port 3000 (this project)."
+        }
+        else {
+            throw "Port 3000 is occupied by another process. $(Format-PortOwner -Owner $backendOwner)"
+        }
+    }
+    else {
+        Start-Process -FilePath $shellExe -ArgumentList @(
+            "-NoExit",
+            "-ExecutionPolicy", "Bypass",
+            "-Command", "cd `"$serverDir`"; npm run dev"
+        ) | Out-Null
+        Write-Ok "Backend start command sent."
+    }
 
-Write-Host ""
-Write-Success "================================================"
-Write-Success "✓ 系统启动指令已发出！"
-Write-Success "================================================"
-Write-Host "前端和后端服务已在独立的 PowerShell 窗口中运行。"
-Write-Host "若要停止系统，请直接关闭弹出的对应服务终端窗口即可。"
-Write-Host ""
-Read-Host "按 Enter 键退出此配置向导脚本..."
+    $frontendOwner = Get-PortOwnerInfo -Port 5173
+    if ($frontendOwner) {
+        if (Test-ProcessOwnedByPath -Owner $frontendOwner -ExpectedPath $clientDir) {
+            Write-Ok "Frontend already running on port 5173 (this project)."
+        }
+        else {
+            throw "Port 5173 is occupied by another process. $(Format-PortOwner -Owner $frontendOwner)"
+        }
+    }
+    else {
+        Start-Process -FilePath $shellExe -ArgumentList @(
+            "-NoExit",
+            "-ExecutionPolicy", "Bypass",
+            "-Command", "cd `"$clientDir`"; npm run dev"
+        ) | Out-Null
+        Write-Ok "Frontend start command sent."
+    }
+
+    Start-Sleep -Seconds 2
+    Write-Host ""
+
+    Write-Info "[4/4] Finalizing..."
+    if (-not $NoBrowser) {
+        Start-Process "http://localhost:5173" | Out-Null
+        Write-Ok "Browser opened: http://localhost:5173"
+    }
+    else {
+        Write-Info "Skipped opening browser (-NoBrowser)."
+    }
+
+    Write-Host ""
+    Write-Ok "Done. Services should now be running in new PowerShell windows."
+    Write-Info "Backend:  http://localhost:3000"
+    Write-Info "Frontend: http://localhost:5173"
+}
+catch {
+    Write-Fail ("Startup failed: " + $_.Exception.Message)
+    exit 1
+}

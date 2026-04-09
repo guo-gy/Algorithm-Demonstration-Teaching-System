@@ -26,17 +26,6 @@ const openAuth = (mode: 'login' | 'register') => {
             <BookOpen class="h-8 w-8 text-primary-600" />
             <span class="ml-2 text-xl font-bold text-slate-900">AlgoEdu</span>
           </div>
-          <div class="hidden sm:ml-6 sm:flex sm:space-x-8">
-            <a href="#" class="border-primary-500 text-slate-900 inline-flex items-center px-1 pt-1 border-b-2 text-sm font-medium">
-              {{ t('navbar.algorithms') }}
-            </a>
-            <a href="#" class="border-transparent text-slate-500 hover:border-slate-300 hover:text-slate-700 inline-flex items-center px-1 pt-1 border-b-2 text-sm font-medium">
-              {{ t('navbar.practice') }}
-            </a>
-            <a href="#" class="border-transparent text-slate-500 hover:border-slate-300 hover:text-slate-700 inline-flex items-center px-1 pt-1 border-b-2 text-sm font-medium">
-              {{ t('navbar.theory') }}
-            </a>
-          </div>
         </div>
 
         <div class="hidden sm:ml-6 sm:flex sm:items-center">
