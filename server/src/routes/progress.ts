@@ -1,14 +1,13 @@
 import { Router, Response } from 'express';
-import db from '../db';
+import { execute, queryAll } from '../db';
 import { authMiddleware, AuthRequest } from '../middleware/auth';
-import { UserProgress } from '@shared/types';
 
 const router = Router();
 
 router.get('/', authMiddleware, async (req: AuthRequest, res: Response) => {
     try {
         const userId = req.userId;
-        const userProgress = db.prepare('SELECT * FROM progress WHERE userId = ?').all(userId) as any[];
+        const userProgress = await queryAll<any>('SELECT * FROM progress WHERE userId = ?', [userId]);
 
         // Convert integer 0/1 to boolean for completed
         const formattedProgress = userProgress.map(p => ({
@@ -30,31 +29,27 @@ router.post('/:algorithmId', authMiddleware, async (req: AuthRequest, res: Respo
         const userId = req.userId as string;
         const lastVisit = Date.now();
 
-        const progress = db.prepare('SELECT * FROM progress WHERE userId = ? AND algorithmId = ?').get(userId, algorithmId) as any;
-
-        if (progress) {
-            db.prepare('UPDATE progress SET completed = ?, score = ?, lastVisit = ? WHERE userId = ? AND algorithmId = ?').run(
-                completed ? 1 : 0,
-                score,
-                lastVisit,
-                userId,
-                algorithmId
-            );
-        } else {
-            db.prepare('INSERT INTO progress (userId, algorithmId, completed, score, lastVisit) VALUES (?, ?, ?, ?, ?)').run(
+        await execute(
+            `INSERT INTO progress (userId, algorithmId, completed, score, lastVisit)
+             VALUES (?, ?, ?, ?, ?)
+             ON DUPLICATE KEY UPDATE
+                completed = VALUES(completed),
+                score = VALUES(score),
+                lastVisit = VALUES(lastVisit)`,
+            [
                 userId,
                 algorithmId,
                 completed ? 1 : 0,
-                score,
-                lastVisit
-            );
-        }
+                score ?? 0,
+                lastVisit,
+            ]
+        );
 
         const updatedProgress = {
             userId,
             algorithmId,
-            completed,
-            score,
+            completed: !!completed,
+            score: score ?? 0,
             lastVisit
         };
 

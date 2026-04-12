@@ -1,7 +1,7 @@
 import { Router, Request, Response } from 'express';
 import bcrypt from 'bcryptjs';
 import { v4 as uuidv4 } from 'uuid';
-import db, { User } from '../db';
+import { User, execute, queryOne } from '../db';
 import { generateToken } from '../utils/auth';
 
 const router = Router();
@@ -14,7 +14,7 @@ router.post('/register', async (req: Request, res: Response): Promise<void> => {
             return;
         }
 
-        const existingUser = db.prepare('SELECT * FROM users WHERE username = ?').get(username) as User | undefined;
+        const existingUser = await queryOne<User>('SELECT * FROM users WHERE username = ? LIMIT 1', [username]);
         if (existingUser) {
             res.status(400).json({ error: 'Username already exists' });
             return;
@@ -28,12 +28,12 @@ router.post('/register', async (req: Request, res: Response): Promise<void> => {
             createdAt: Date.now(),
         };
 
-        db.prepare('INSERT INTO users (id, username, passwordHash, createdAt) VALUES (?, ?, ?, ?)').run(
+        await execute('INSERT INTO users (id, username, passwordHash, createdAt) VALUES (?, ?, ?, ?)', [
             newUser.id,
             newUser.username,
             newUser.passwordHash,
             newUser.createdAt
-        );
+        ]);
 
         const token = generateToken(newUser.id);
         res.status(201).json({ token, user: { id: newUser.id, username: newUser.username } });
@@ -46,7 +46,7 @@ router.post('/register', async (req: Request, res: Response): Promise<void> => {
 router.post('/login', async (req: Request, res: Response): Promise<void> => {
     try {
         const { username, password } = req.body;
-        const user = db.prepare('SELECT * FROM users WHERE username = ?').get(username) as User | undefined;
+        const user = await queryOne<User>('SELECT * FROM users WHERE username = ? LIMIT 1', [username]);
 
         if (!user || !(await bcrypt.compare(password, user.passwordHash))) {
             res.status(401).json({ error: 'Invalid username or password' });

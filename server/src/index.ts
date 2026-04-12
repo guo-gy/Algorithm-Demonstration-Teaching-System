@@ -1,6 +1,7 @@
 import express from 'express';
 import cors from 'cors';
 import dotenv from 'dotenv';
+import { initDb } from './db';
 import authRoutes from './routes/auth';
 import algorithmRoutes from './routes/algorithms';
 import progressRoutes from './routes/progress';
@@ -24,6 +25,15 @@ app.get('/api/health', (req, res) => {
     res.json({ status: 'ok', message: 'Algorithm Demonstration Teaching System API is running' });
 });
 
-app.listen(port, () => {
-    console.log(`Server is running on port ${port}`);
+async function startServer() {
+    await initDb();
+
+    app.listen(port, () => {
+        console.log(`Server is running on port ${port}`);
+    });
+}
+
+startServer().catch((error) => {
+    console.error('Failed to start server:', error);
+    process.exit(1);
 });

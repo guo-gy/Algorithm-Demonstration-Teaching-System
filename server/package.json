@@ -7,6 +7,8 @@
     "dev": "nodemon -r tsconfig-paths/register src/index.ts",
     "start": "ts-node -r tsconfig-paths/register src/index.ts",
     "build": "tsc",
+    "db:init": "ts-node -r tsconfig-paths/register src/scripts/init-data.ts",
+    "db:init:reset": "ts-node -r tsconfig-paths/register src/scripts/init-data.ts --reset",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "keywords": [],
@@ -15,17 +17,16 @@
   "type": "commonjs",
   "dependencies": {
     "bcryptjs": "^3.0.3",
-    "better-sqlite3": "^12.6.2",
     "cors": "^2.8.6",
     "dotenv": "^17.2.4",
     "express": "^5.2.1",
     "jsonwebtoken": "^9.0.3",
     "lodash": "^4.17.23",
+    "mysql2": "^3.15.2",
     "uuid": "^13.0.0"
   },
   "devDependencies": {
     "@types/bcryptjs": "^2.4.6",
-    "@types/better-sqlite3": "^7.6.13",
     "@types/cors": "^2.8.19",
     "@types/express": "^5.0.6",
     "@types/jsonwebtoken": "^9.0.10",

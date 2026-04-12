@@ -57,6 +57,12 @@ const renderArray = (data: number[], highlightedIndices: number[] = [], comparin
     .text(d => d);
 };
 
+const getTreeChildren = (node: any) => {
+  if (!node) return [];
+  const children = [node.left, node.right].filter((child) => child !== null && child !== undefined);
+  return children;
+};
+
 const renderTree = (root: any, currentNodeId?: string | number) => {
   if (!visualizerRef.value || !root) return;
   const container = d3.select(visualizerRef.value);
@@ -67,7 +73,7 @@ const renderTree = (root: any, currentNodeId?: string | number) => {
   const svg = container.append('svg').attr('width', width).attr('height', height);
   const g = svg.append('g').attr('transform', 'translate(0, 40)');
 
-  const hierarchy = d3.hierarchy(root);
+  const hierarchy = d3.hierarchy(root, getTreeChildren);
   const treeLayout = d3.tree().size([width, height - 100]);
   treeLayout(hierarchy);
 
@@ -110,22 +116,30 @@ const renderGraph = (data: any, currentNodeId?: string | number, variables: any 
   const height = 400;
 
   const svg = container.append('svg').attr('width', width).attr('height', height);
+
+  // Use cloned graph data so D3 force simulation does not mutate store snapshots.
+  const nodes = (data.nodes || []).map((node: any) => ({ ...node }));
+  const edges = (data.edges || []).map((edge: any) => ({
+    source: edge.source,
+    target: edge.target,
+    weight: edge.weight,
+  }));
   
-  const simulation = d3.forceSimulation(data.nodes)
-    .force('link', d3.forceLink(data.edges).id((d: any) => d.id).distance(100))
+  const simulation = d3.forceSimulation(nodes)
+    .force('link', d3.forceLink(edges).id((d: any) => d.id).distance(100))
     .force('charge', d3.forceManyBody().strength(-300))
     .force('center', d3.forceCenter(width / 2, height / 2));
 
   const link = svg.append('g')
     .selectAll('line')
-    .data(data.edges)
+    .data(edges)
     .join('line')
     .attr('stroke', '#cbd5e1')
     .attr('stroke-width', 2);
 
   const node = svg.append('g')
     .selectAll('circle')
-    .data(data.nodes)
+    .data(nodes)
     .join('circle')
     .attr('r', 15)
     .attr('fill', (d: any) => {
@@ -138,7 +152,7 @@ const renderGraph = (data: any, currentNodeId?: string | number, variables: any 
 
   const label = svg.append('g')
     .selectAll('text')
-    .data(data.nodes)
+    .data(nodes)
     .join('text')
     .attr('dy', '0.35em')
     .attr('text-anchor', 'middle')
@@ -159,6 +173,10 @@ const renderGraph = (data: any, currentNodeId?: string | number, variables: any 
     label
       .attr('x', (d: any) => d.x)
       .attr('y', (d: any) => d.y);
+  });
+
+  simulation.on('end', () => {
+    simulation.stop();
   });
 };
 
@@ -200,19 +218,19 @@ const renderDP = (matrix: number[][], currentCell?: [number, number]) => {
   });
 };
 
-watch(() => algoStore.currentSnapshot, (snapshot) => {
+watch([() => algoStore.currentSnapshot, () => props.type], ([snapshot, type]) => {
   if (snapshot) {
-    if (props.type === 'array') {
+    if (type === 'array') {
       renderArray(snapshot.dataStructureState, [], snapshot.variables.comparing || [], snapshot.variables.swapping || []);
-    } else if (props.type === 'tree') {
+    } else if (type === 'tree') {
       renderTree(snapshot.dataStructureState, snapshot.currentNodeId);
-    } else if (props.type === 'graph') {
+    } else if (type === 'graph') {
       renderGraph(snapshot.dataStructureState, snapshot.currentNodeId, snapshot.variables);
-    } else if (props.type === 'dp') {
+    } else if (type === 'dp') {
       renderDP(snapshot.dataStructureState, [snapshot.variables.i, snapshot.variables.w]);
     }
   }
-}, { deep: true });
+}, { immediate: true });
 
 onMounted(() => {
   if (algoStore.currentSnapshot) {
