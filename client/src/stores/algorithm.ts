@@ -1,6 +1,7 @@
 import { defineStore } from 'pinia';
 import axios from 'axios';
-import type { AlgorithmSnapshot, AlgorithmMetaData, FillBlankEvaluation } from '../../../shared/types';
+import { useAuthStore } from './auth';
+import type { AlgorithmSnapshot, AlgorithmMetaData, FillBlankEvaluation, UserProgress } from '../../../shared/types';
 
 const API_BASE_URL = 'http://localhost:3000/api';
 
@@ -13,18 +14,60 @@ export const useAlgorithmStore = defineStore('algorithm', {
         isPlaying: false,
         playbackSpeed: 500, // ms
         playbackTimer: null as any,
+        userProgress: [] as UserProgress[],
     }),
     getters: {
         currentSnapshot: (state) => state.snapshots[state.currentStepIndex] || null,
         progress: (state) => {
             if (state.snapshots.length === 0) return 0;
             return ((state.currentStepIndex + 1) / state.snapshots.length) * 100;
-        }
+        },
+        currentUserProgress: (state) => {
+            if (!state.currentAlgorithm) return null;
+            return state.userProgress.find((item) => item.algorithmId === state.currentAlgorithm?.id) ?? null;
+        },
     },
     actions: {
+        authHeaders() {
+            const authStore = useAuthStore();
+            return authStore.token ? { Authorization: `Bearer ${authStore.token}` } : {};
+        },
         async fetchAlgorithms() {
             const response = await axios.get(`${API_BASE_URL}/algorithms`);
             this.algorithms = response.data;
+        },
+        async fetchProgress() {
+            const authStore = useAuthStore();
+            if (!authStore.isAuthenticated) {
+                this.userProgress = [];
+                return;
+            }
+
+            const response = await axios.get(`${API_BASE_URL}/progress`, {
+                headers: this.authHeaders(),
+            });
+            this.userProgress = response.data;
+        },
+        async updateProgress(algorithmId: string, completed: boolean, score = 0) {
+            const authStore = useAuthStore();
+            if (!authStore.isAuthenticated) return;
+
+            const previousProgress = this.userProgress.find((item) => item.algorithmId === algorithmId);
+            const nextScore = Math.max(score, previousProgress?.score ?? 0);
+
+            const response = await axios.post(
+                `${API_BASE_URL}/progress/${algorithmId}`,
+                { completed: completed || !!previousProgress?.completed, score: nextScore },
+                { headers: this.authHeaders() },
+            );
+
+            const updatedProgress = response.data as UserProgress;
+            const existingIndex = this.userProgress.findIndex((item) => item.algorithmId === algorithmId);
+            if (existingIndex >= 0) {
+                this.userProgress.splice(existingIndex, 1, updatedProgress);
+            } else {
+                this.userProgress.push(updatedProgress);
+            }
         },
         async runAlgorithm(id: string, data: any) {
             const response = await axios.post(`${API_BASE_URL}/algorithms/${id}/execute`, data);
@@ -47,6 +90,9 @@ export const useAlgorithmStore = defineStore('algorithm', {
         nextStep() {
             if (this.currentStepIndex < this.snapshots.length - 1) {
                 this.currentStepIndex++;
+                if (this.currentAlgorithm && this.currentStepIndex === this.snapshots.length - 1) {
+                    void this.updateProgress(this.currentAlgorithm.id, true, this.currentUserProgress?.score ?? 0);
+                }
             } else {
                 this.stopPlayback();
             }

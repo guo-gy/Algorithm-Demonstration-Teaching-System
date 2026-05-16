@@ -1,7 +1,8 @@
 <script setup lang="ts">
-import { onMounted, ref } from 'vue';
+import { onMounted, ref, watch } from 'vue';
 import type { AlgorithmMetaData } from '@shared/types';
 import { useAlgorithmStore } from './stores/algorithm';
+import { useAuthStore } from './stores/auth';
 import Navbar from './components/layout/Navbar.vue';
 import DataStructureVisualizer from './components/visualizer/DataStructureVisualizer.vue';
 import AlgorithmPlayer from './components/visualizer/AlgorithmPlayer.vue';
@@ -13,6 +14,7 @@ import { Layers, ChevronRight, BarChart2, Search, PlayCircle, Edit3, Settings } 
 import { useI18n } from './i18n';
 
 const algoStore = useAlgorithmStore();
+const authStore = useAuthStore();
 const { t } = useI18n();
 const sidebarOpen = ref(true);
 const activeTab = ref<'visualize' | 'practice' | 'theory'>('visualize');
@@ -243,6 +245,15 @@ const runWithCustomInput = async () => {
   }
 };
 
+const switchTab = (tab: 'visualize' | 'practice' | 'theory') => {
+  if (tab === 'practice' && !authStore.isAuthenticated) {
+    authStore.openAuth('login');
+    return;
+  }
+
+  activeTab.value = tab;
+};
+
 const applyDefaultInput = async () => {
   if (!algoStore.currentAlgorithm) return;
 
@@ -254,11 +265,27 @@ const applyDefaultInput = async () => {
 
 onMounted(async () => {
   await algoStore.fetchAlgorithms();
+  await algoStore.fetchProgress();
   const firstAlgorithm = algoStore.algorithms[0];
   if (firstAlgorithm) {
     selectAlgorithm(firstAlgorithm);
   }
 });
+
+watch(
+  () => authStore.isAuthenticated,
+  async (isAuthenticated) => {
+    if (isAuthenticated) {
+      await algoStore.fetchProgress();
+      return;
+    }
+
+    algoStore.userProgress = [];
+    if (activeTab.value === 'practice') {
+      activeTab.value = 'visualize';
+    }
+  },
+);
 
 const selectAlgorithm = async (algo: AlgorithmMetaData) => {
   algoStore.currentAlgorithm = algo;
@@ -329,7 +356,7 @@ const getVisualizerType = (category: string) => {
               </div>
               <div class="flex space-x-1 p-1 bg-slate-200/50 rounded-xl">
                 <button 
-                  @click="activeTab = 'visualize'"
+                  @click="switchTab('visualize')"
                   class="flex items-center px-4 py-2 rounded-lg text-sm font-medium transition-all"
                   :class="activeTab === 'visualize' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500 hover:text-slate-700'"
                 >
@@ -337,7 +364,7 @@ const getVisualizerType = (category: string) => {
                   {{ t('visualizer.visualize_demo') }}
                 </button>
                 <button 
-                  @click="activeTab = 'practice'"
+                  @click="switchTab('practice')"
                   class="flex items-center px-4 py-2 rounded-lg text-sm font-medium transition-all"
                   :class="activeTab === 'practice' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500 hover:text-slate-700'"
                 >
@@ -345,7 +372,7 @@ const getVisualizerType = (category: string) => {
                   {{ t('visualizer.interactive_practice') }}
                 </button>
                 <button 
-                  @click="activeTab = 'theory'"
+                  @click="switchTab('theory')"
                   class="flex items-center px-4 py-2 rounded-lg text-sm font-medium transition-all"
                   :class="activeTab === 'theory' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500 hover:text-slate-700'"
                 >
@@ -570,4 +597,3 @@ const getVisualizerType = (category: string) => {
   @apply bg-slate-300 rounded-full hover:bg-slate-400;
 }
 </style>
-

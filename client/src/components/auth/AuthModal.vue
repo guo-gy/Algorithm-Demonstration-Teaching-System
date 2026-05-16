@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref } from 'vue';
+import { ref, watch } from 'vue';
 import { useAuthStore } from '../../stores/auth';
 import { X, User, Lock, Loader2 } from 'lucide-vue-next';
 import { useI18n } from '../../i18n';
@@ -19,6 +19,14 @@ const username = ref('');
 const password = ref('');
 const error = ref('');
 const loading = ref(false);
+
+watch(
+  () => props.initialMode,
+  (nextMode) => {
+    mode.value = nextMode;
+    error.value = '';
+  },
+);
 
 const toggleMode = () => {
   mode.value = mode.value === 'login' ? 'register' : 'login';

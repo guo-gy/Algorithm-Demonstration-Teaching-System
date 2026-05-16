@@ -180,7 +180,7 @@ const renderGraph = (data: any, currentNodeId?: string | number, variables: any 
   });
 };
 
-const renderDP = (matrix: number[][], currentCell?: [number, number]) => {
+const renderDP = (matrix: number[][], currentCell?: [number, number], variables: Record<string, any> = {}) => {
   if (!visualizerRef.value) return;
   const container = d3.select(visualizerRef.value);
   container.selectAll('*').remove();
@@ -190,19 +190,54 @@ const renderDP = (matrix: number[][], currentCell?: [number, number]) => {
   const svg = container.append('svg').attr('width', width).attr('height', height);
   const rows = matrix.length;
   const cols = matrix[0]?.length || 0;
-  const cellSize = Math.min((width - 100) / cols, (height - 100) / rows, 40);
+  if (rows === 0 || cols === 0) return;
 
-  const g = svg.append('g').attr('transform', `translate(${(width - cols * cellSize) / 2}, ${(height - rows * cellSize) / 2})`);
+  const leftLabelWidth = 64;
+  const topLabelHeight = 30;
+  const cellSize = Math.max(Math.min((width - leftLabelWidth - 40) / cols, (height - topLabelHeight - 40) / rows, 40), 22);
+  const gridWidth = cols * cellSize;
+  const gridHeight = rows * cellSize;
+  const originX = Math.max((width - gridWidth) / 2, leftLabelWidth);
+  const originY = Math.max((height - gridHeight) / 2, topLabelHeight + 8);
+
+  const g = svg.append('g').attr('transform', `translate(${originX}, ${originY})`);
+
+  svg.append('text')
+    .attr('x', originX - 8)
+    .attr('y', originY - 10)
+    .attr('text-anchor', 'end')
+    .attr('class', 'text-[10px] font-bold fill-slate-500')
+    .text('物品/容量');
+
+  for (let c = 0; c < cols; c++) {
+    svg.append('text')
+      .attr('x', originX + c * cellSize + cellSize / 2)
+      .attr('y', originY - 10)
+      .attr('text-anchor', 'middle')
+      .attr('class', 'text-[10px] font-bold fill-slate-500')
+      .text(c);
+  }
 
   matrix.forEach((row, r) => {
+    svg.append('text')
+      .attr('x', originX - 10)
+      .attr('y', originY + r * cellSize + cellSize / 2)
+      .attr('dy', '0.35em')
+      .attr('text-anchor', 'end')
+      .attr('class', 'text-[10px] font-bold fill-slate-500')
+      .text(r === 0 ? '0' : `#${r}`);
+
     row.forEach((val, c) => {
       const isCurrent = currentCell?.[0] === r && currentCell?.[1] === c;
+      const isTakeSource = variables.weight !== undefined && currentCell?.[0] === r && currentCell?.[1] === c
+        ? r > 0 && c - Number(variables.weight) >= 0
+        : false;
       g.append('rect')
         .attr('x', c * cellSize)
         .attr('y', r * cellSize)
         .attr('width', cellSize)
         .attr('height', cellSize)
-        .attr('fill', isCurrent ? '#10b981' : '#fff')
+        .attr('fill', isCurrent ? '#10b981' : isTakeSource ? '#fef3c7' : '#fff')
         .attr('stroke', '#e2e8f0');
 
       if (val !== undefined) {
@@ -211,7 +246,7 @@ const renderDP = (matrix: number[][], currentCell?: [number, number]) => {
           .attr('y', r * cellSize + cellSize / 2)
           .attr('dy', '0.35em')
           .attr('text-anchor', 'middle')
-          .attr('class', 'text-[10px] fill-slate-600')
+          .attr('class', isCurrent ? 'text-[10px] font-bold fill-white' : 'text-[10px] fill-slate-600')
           .text(val);
       }
     });
@@ -227,7 +262,10 @@ watch([() => algoStore.currentSnapshot, () => props.type], ([snapshot, type]) =>
     } else if (type === 'graph') {
       renderGraph(snapshot.dataStructureState, snapshot.currentNodeId, snapshot.variables);
     } else if (type === 'dp') {
-      renderDP(snapshot.dataStructureState, [snapshot.variables.i, snapshot.variables.w]);
+      const currentCell = Number.isInteger(snapshot.variables.i) && Number.isInteger(snapshot.variables.w)
+        ? [snapshot.variables.i, snapshot.variables.w] as [number, number]
+        : undefined;
+      renderDP(snapshot.dataStructureState, currentCell, snapshot.variables);
     }
   }
 }, { immediate: true });
@@ -237,7 +275,7 @@ onMounted(() => {
     if (props.type === 'array') renderArray(algoStore.currentSnapshot.dataStructureState);
     else if (props.type === 'tree') renderTree(algoStore.currentSnapshot.dataStructureState);
     else if (props.type === 'graph') renderGraph(algoStore.currentSnapshot.dataStructureState);
-    else if (props.type === 'dp') renderDP(algoStore.currentSnapshot.dataStructureState);
+    else if (props.type === 'dp') renderDP(algoStore.currentSnapshot.dataStructureState, undefined, algoStore.currentSnapshot.variables);
   }
 });
 

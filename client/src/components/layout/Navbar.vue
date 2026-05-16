@@ -1,5 +1,4 @@
 <script setup lang="ts">
-import { ref } from 'vue';
 import { useAuthStore } from '../../stores/auth';
 import { LogOut, User, BookOpen } from 'lucide-vue-next';
 import { useI18n } from '../../i18n';
@@ -7,14 +6,6 @@ import AuthModal from '../auth/AuthModal.vue';
 
 const authStore = useAuthStore();
 const { t } = useI18n();
-
-const isAuthModalOpen = ref(false);
-const authMode = ref<'login' | 'register'>('login');
-
-const openAuth = (mode: 'login' | 'register') => {
-  authMode.value = mode;
-  isAuthModalOpen.value = true;
-};
 </script>
 
 <template>
@@ -49,13 +40,13 @@ const openAuth = (mode: 'login' | 'register') => {
           <template v-else>
             <div class="flex items-center space-x-3">
               <button 
-                @click="openAuth('login')"
+                @click="authStore.openAuth('login')"
                 class="text-slate-600 hover:text-slate-900 px-4 py-2 rounded-lg text-sm font-semibold transition-colors"
               >
                 {{ t('navbar.login') }}
               </button>
               <button 
-                @click="openAuth('register')"
+                @click="authStore.openAuth('register')"
                 class="bg-primary-600 text-white px-5 py-2 rounded-lg text-sm font-bold hover:bg-primary-700 shadow-md shadow-primary-100 transition-all active:scale-95"
               >
                 {{ t('navbar.register') }}
@@ -68,9 +59,9 @@ const openAuth = (mode: 'login' | 'register') => {
 
     <!-- Auth Modal -->
     <AuthModal 
-      :is-open="isAuthModalOpen" 
-      :initial-mode="authMode"
-      @close="isAuthModalOpen = false"
+      :is-open="authStore.isAuthModalOpen"
+      :initial-mode="authStore.authMode"
+      @close="authStore.closeAuth"
     />
   </nav>
 </template>

@@ -3,9 +3,11 @@ import { computed, ref, watch } from 'vue';
 import { buildPracticeSet } from '@shared/practice';
 import type { FillBlankEvaluation, MultipleChoicePracticeQuestion } from '@shared/types';
 import { useAlgorithmStore } from '../../stores/algorithm';
+import { useAuthStore } from '../../stores/auth';
 import { CheckCircle, AlertCircle, HelpCircle, RefreshCcw, ListChecks, PencilLine, LoaderCircle, Sparkles } from 'lucide-vue-next';
 
 const algoStore = useAlgorithmStore();
+const authStore = useAuthStore();
 
 const practiceMode = ref<'multiple-choice' | 'fill-blank'>('multiple-choice');
 const multipleChoiceSelections = ref<Record<string, string>>({});
@@ -69,13 +71,24 @@ function selectOption(questionId: string, optionId: string) {
 }
 
 function checkMultipleChoice(question: MultipleChoicePracticeQuestion) {
+  if (!authStore.isAuthenticated) {
+    authStore.openAuth('login');
+    return;
+  }
+
   const selectedOption = multipleChoiceSelections.value[question.id];
   if (!selectedOption) return;
 
+  const result = selectedOption === question.correctOptionId ? 'correct' : 'wrong';
   multipleChoiceResults.value = {
     ...multipleChoiceResults.value,
-    [question.id]: selectedOption === question.correctOptionId ? 'correct' : 'wrong',
+    [question.id]: result,
   };
+
+  if (algoStore.currentAlgorithm) {
+    const score = result === 'correct' ? question.points : 0;
+    void algoStore.updateProgress(algoStore.currentAlgorithm.id, true, score);
+  }
 }
 
 function splitTemplateLine(line: string, blankToken: string) {
@@ -92,6 +105,11 @@ function splitTemplateLine(line: string, blankToken: string) {
 }
 
 async function submitFillBlank() {
+  if (!authStore.isAuthenticated) {
+    authStore.openAuth('login');
+    return;
+  }
+
   const question = fillBlankQuestion.value;
   if (!question || !fillBlankAnswer.value.trim()) return;
 
@@ -100,6 +118,9 @@ async function submitFillBlank() {
 
   try {
     fillBlankResult.value = await algoStore.gradeFillBlank(question.id, fillBlankAnswer.value);
+    if (algoStore.currentAlgorithm) {
+      await algoStore.updateProgress(algoStore.currentAlgorithm.id, true, fillBlankResult.value.score);
+    }
   } catch (error: any) {
     fillBlankResult.value = null;
     fillBlankError.value = error.response?.data?.error || error.message || '填空题判分失败，请稍后重试。';

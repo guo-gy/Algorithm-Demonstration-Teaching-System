@@ -24,10 +24,10 @@ export class DPEngine extends AlgorithmEngine {
         });
 
         for (let i = 1; i <= n; i++) {
-            for (let w = 1; w <= capacity; w++) {
+            for (let w = 0; w <= capacity; w++) {
                 snapshots.push({
                     dataStructureState: dp.map(row => [...row]),
-                    highlightedLineIds: [1, 2],
+                    highlightedLineIds: [0, 1],
                     description: 'knapsack_considering_item',
                     variables: { i, w, weight: weights[i - 1], val: values[i - 1] },
                 });
@@ -39,7 +39,7 @@ export class DPEngine extends AlgorithmEngine {
 
                     snapshots.push({
                         dataStructureState: dp.map(row => [...row]),
-                        highlightedLineIds: [3],
+                        highlightedLineIds: [2],
                         description: 'knapsack_comparing_take_skip',
                         variables: { i, w, take, skip, max: dp[i][w] },
                     });
@@ -47,7 +47,7 @@ export class DPEngine extends AlgorithmEngine {
                     dp[i][w] = dp[i - 1][w];
                     snapshots.push({
                         dataStructureState: dp.map(row => [...row]),
-                        highlightedLineIds: [4],
+                        highlightedLineIds: [3],
                         description: 'knapsack_too_heavy',
                         variables: { i, w, weight: weights[i - 1], val: dp[i][w] },
                     });
@@ -57,7 +57,7 @@ export class DPEngine extends AlgorithmEngine {
 
         snapshots.push({
             dataStructureState: dp.map(row => [...row]),
-            highlightedLineIds: [5],
+            highlightedLineIds: [0, 1, 2, 3],
             description: 'knapsack_complete',
             variables: { maxValue: dp[n][capacity] },
         });

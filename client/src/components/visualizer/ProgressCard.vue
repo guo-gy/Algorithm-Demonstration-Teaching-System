@@ -13,6 +13,8 @@ const demoCompletion = computed(() => {
   if (!algoStore.snapshots.length) return 0;
   return Math.round(((algoStore.currentStepIndex + 1) / algoStore.snapshots.length) * 100);
 });
+
+const currentProgress = computed(() => algoStore.currentUserProgress);
 </script>
 
 <template>
@@ -49,6 +51,19 @@ const demoCompletion = computed(() => {
           <span>当前算法：{{ algoStore.currentAlgorithm ? t(`algorithms.${algoStore.currentAlgorithm.name}`) : '未选择' }}</span>
         </div>
         <span>步数：{{ Math.max(algoStore.currentStepIndex + 1, 0) }}</span>
+      </div>
+
+      <div class="rounded-lg border border-slate-100 bg-slate-50 p-3 text-xs text-slate-500 space-y-1">
+        <div class="flex items-center justify-between">
+          <span>数据库学习状态</span>
+          <span class="font-bold" :class="currentProgress?.completed ? 'text-green-600' : 'text-slate-400'">
+            {{ currentProgress?.completed ? '已完成' : '未完成' }}
+          </span>
+        </div>
+        <div class="flex items-center justify-between">
+          <span>练习最高得分</span>
+          <span class="font-bold text-slate-700">{{ currentProgress?.score ?? 0 }}</span>
+        </div>
       </div>
     </div>
   </div>
